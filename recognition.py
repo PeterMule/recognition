@@ -1,5 +1,4 @@
 from instance.config import SQLALCHEMY_DATABASE_URI
-#SQLALCHEMY_DATABASE_URI = '''mysql+pymysql://root:101Corrunpt10n@127.0.0.1/dreamteam'''
 import pymysql as msq
 import re
 import face_recognition as fr
@@ -53,13 +52,13 @@ def sumlist(ls = []):
             ret=ret+1
     return ret
 
-def verify_attendance(attendance_id,wrkng_dir = '',tolerance = [0.4,0.5,0.6]):
+def verify_std_attendance(attendance_id,wrkng_dir = '',tolerance = [0.4,0.5,0.6]):
     cnt = msq.connect(host=details[2],user=details[0],password=details[1],database=details[3])
     cur = cnt.cursor()
     cur.execute('SELECT at.uploaded_photo,at.student FROM attendance as at JOIN classesas cl on cl.id = at.class_ WHERE id = {0} and cl.archived = 0'.format(attendance_id))
     result = cr.fetchone()
     if len(result) < 1:
-        RuntimeError('The attendace id does not exist or the class has been archived')
+        RuntimeError('The attendance id does not exist or the class has been archived')
     unverified_photo = os.path.join(wrkng_dir,result[0])
     img = fr.load_image_file(unverified_photo)
     if img:
@@ -93,6 +92,41 @@ def verify_attendance(attendance_id,wrkng_dir = '',tolerance = [0.4,0.5,0.6]):
             maxi += len(ls) * abs(log(i))
 
     return retu/maxi
+
+def quoted_str(lst):
+    s = ''
+    for i in lst:
+        s+="'"+str(i)+"',"
+    return s[:-1]
+
+def verify_class_attendance(class_id,wrkng_dir='',threshhold = 0.6,tolerance = [0.4,0.5,0.6]):
+    cnt = msq.connect(host=details[2],user=details[0],password=details[1],database=details[3])
+    cur = cnt.cursor()
+    cur.execute("SELECT at.id FROM at.attendance WHERE at.class_ = {} ".format(class_id))
+    atts = cur.fetchall()
+    confirmed,uncertain,absent =  [],[],[]
+    for i in atts:
+        verdict = verify_std_attendance(i[0],wrkng_dir,tolerance)
+        if verdict == 0:
+            absent.append(i[0])
+        elif verdict < threshhold:
+            uncertain.append(i[0])
+        else:
+            confirmed.append(i[0])
+    ratio = str(len(confirmed))+'/'+str(len(atts))
+    confirmed = quoted_str(confirmed)
+    uncertain = quoted_str(uncertain)
+    absent = quoted_str(absent)
+    if confirmed:
+        cur.execute("UPDATE attendance SET verified  = 1 WHERE student in ({})".format(confirmed))
+    if uncertain:
+        cur.execute("UPDATE attendance SET verified  = 4 WHERE student in ({})".format(uncertain))
+    if absent:
+        cur.execute("UPDATE attendance SET verified  = 3 WHERE student in ({})".format(absent))
+    cur.close()
+    cnt.close()
+    return ratio         
+
 
 def change_photos(reg_num,wrkng_dir = '' ):
     cnt = msq.connect(host=details[2],user=details[0],password=details[1],database=details[3])
@@ -142,5 +176,14 @@ CREATE TABLE `dreamteam`.`faces` (
     Notice the extra table is an necessary since its a one to one relationship but inclusion into the students table requires changing the sqlalchemy code as well
     I decided not to use the file as a database in preparation on the expected groth rate and also due to the errors that my occure when multiple requests are placed to alter the file at one time as well as save on cpu time
     the verification function return value is a float between 0 and one that favours verification at low tolerance
-
+Verification statuses used
+INSERT INTO verification_statuses 
+(id,error_message,description)
+VALUES 
+(1,'The student was recognised and the marked as attended','present'), 
+(2,'A photo was uploaded but there was no face detected','absent'), 
+(3,'The photo uploaded had a face but was not recognised as the student','absent'), 
+(4,'A face was detected in the photo uploaded but the level of certainty is low,requires human confirmation','present'), 
+(5,'The photo was verified by a human and the student marked as absent','absent'), 
+(6,'The photo was verified by a human and the student marked as present','present');
 """
