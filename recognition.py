@@ -3,7 +3,7 @@ from instance.config import SQLALCHEMY_DATABASE_URI
 import pymysql as msq
 import re
 import face_recognition as fr
-from path import os
+from os import path
 import pickle as pkl
 from math import log
 
