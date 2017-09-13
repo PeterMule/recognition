@@ -53,7 +53,7 @@ def sumlist(ls = []):
             ret=ret+1
     return ret
 
-def verify_std_attendance(attendance_id,wrkng_dir = '',tolerance = [0.4,0.5,0.6]):
+def verify_std_attendance(attendance_id,wrkng_dir = '',tolerance = [0.4,0.5,0.6],troubleshoot = False):
     cnt = msq.connect(host=details[2],user=details[0],password=details[1],database=details[3])
     cur = cnt.cursor()
     cur.execute('SELECT at.uploaded_photo,at.student FROM attendance as at JOIN classesas cl on cl.id = at.class_ WHERE id = {0} and cl.archived = 0'.format(attendance_id))
@@ -75,24 +75,45 @@ def verify_std_attendance(attendance_id,wrkng_dir = '',tolerance = [0.4,0.5,0.6]
     cur.execute('SELECT fc from faces where id = "{}"'.format(result[1]))
     
     dump = cur.fetchone()
-    cur.close()
-    cnt.close()
+    
     if len(dump) < 1:
         new_student(result[1],wrkng_dir)
 
     stored_encs = pkl.loads(dump[0])
 
-    retu = 0.0
-    maxi = 0.0
-    for i in tolerance:
-        if i < 0 or i > 1:
-            pass
+    if not troubleshoot:
+        cur.close()
+        cnt.close()
+        retu = 0.0
+        maxi = 0.0
+        for i in tolerance:
+            if i < 0 or i > 1:
+                pass
+            else:
+                ls = fr.compare_faces(stored_encs,unverified_photo,i)
+                retu += sumlist(ls) * abs(log(i))
+                maxi += len(ls) * abs(log(i))
+        if maxi != 0:
+            return retu/maxi
         else:
-            ls = fr.compare_faces(stored_encs,unverified_photo,i)
-            retu += sumlist(ls) * abs(log(i))
-            maxi += len(ls) * abs(log(i))
-
-    return retu/maxi
+            return 0
+    else:
+        cur.execute('SELECT ph.address FROM photos as ph  WHERE ph.student_id = "{}" and ph.learning = 1 ORDER BY 1'.format(reg_num))
+        addresses = cur.fetchall()
+        addresses = [x[0] for x in addresses]
+        verdicts =[]
+        for i in tolerance:
+            if i < 0 or i > 1:
+                pass
+            else:
+                verdicts.append(fr.compare_faces(stored_encs,unverified_photo,i))
+        retu={}
+        for i in range(len(addresses)):
+            temp = {}
+            for j in range(len(verdicts)):
+                temp[tolerance[j]] = verdicts[j][i]
+            retu[addresses[i]] = temp
+        return retu
 
 def quoted_str(lst):
     s = ''
