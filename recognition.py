@@ -17,10 +17,11 @@ details.pop(0)
 
 
 
+
 def new_student(reg_num,wrkng_dir = '' ):
     cnt = msq.connect(host=details[2],user=details[0],password=details[1],database=details[3])
     cur = cnt.cursor()
-    cur.execute('SELECT ph.address FROM photos as ph  WHERE ph.reg_num = {} and ph.learning = 1'.format(reg_num))
+    cur.execute('SELECT ph.address FROM photos as ph  WHERE ph.student_id = "{}" and ph.learning = 1'.format(reg_num))
     addresses = cur.fetchall()
     if len(addresses) < 1 :
         ValueError("The Student does not have any photos")
@@ -28,16 +29,16 @@ def new_student(reg_num,wrkng_dir = '' ):
     allencodings = []
 
     for image in addresses:
-        img = fr.load_image_file(os.path.join(wrkng_dir,image[0]))
-        if img:
+        img = fr.load_image_file(getcwd() + "/app" + path.join(wrkng_dir,image[0]))
+        if img is not None:
             face = fr.face_encodings(img)
             if len(face) < 1:
-                ValueError("The image at |{}| did not contain a face".format(os.path.join(wrkng_dir,image)))
+                ValueError("The image at |{}| did not contain a face".format(path.join(wrkng_dir,image[0])))
             elif len(face) > 1:
-                ValueError("The image at |{}| contained more than one face".format(os.path.join(wrkng_dir,image)))
+                ValueError("The image at |{}| contained more than one face".format(path.join(wrkng_dir,image[0])))
             allencodings.append(face[0])
         else:
-            ValueError("The image at |{}| was unable to load".format(os.path.join(wrkng_dir,image)))
+            ValueError("The image at |{}| was unable to load".format(path.join(wrkng_dir,image[0])))
         
     alist = pkl.dumps(allencodings)
     cur.execute("INSERT INTO faces VALUES ((SELECT id FROM students where reg_num = %s),%s)",(reg_num,alist))
@@ -59,9 +60,9 @@ def verify_std_attendance(attendance_id,wrkng_dir = '',tolerance = [0.4,0.5,0.6]
     result = cr.fetchone()
     if len(result) < 1:
         RuntimeError('The attendance id does not exist or the class has been archived')
-    unverified_photo = os.path.join(wrkng_dir,result[0])
+    unverified_photo = getcwd() + "/app" + path.join(wrkng_dir,result[0])
     img = fr.load_image_file(unverified_photo)
-    if img:
+    if img is not None:
         face = fr.face_encodings(img)
         if len(face) < 1:
             ValueError("The image at |{}| did not contain a face".format(unverified_photo))
@@ -125,13 +126,13 @@ def verify_class_attendance(class_id,wrkng_dir='',threshhold = 0.6,tolerance = [
         cur.execute("UPDATE attendance SET verified  = 3 WHERE student in ({})".format(absent))
     cur.close()
     cnt.close()
-    return ratio         
+    return ratio
 
 
 def change_photos(reg_num,wrkng_dir = '' ):
     cnt = msq.connect(host=details[2],user=details[0],password=details[1],database=details[3])
     cur = cnt.cursor()
-    cur.execute('SELECT ph.address FROM photos as ph  WHERE ph.reg_num = {} and ph.learning = 1'.format(reg_num))
+    cur.execute('SELECT ph.address FROM photos as ph  WHERE ph.student_id = {} and ph.learning = 1'.format(reg_num))
     addresses = cur.fetchall()
     #throw error
     if len(addresses) < 1 :
@@ -140,16 +141,16 @@ def change_photos(reg_num,wrkng_dir = '' ):
     allencodings = []
 
     for image in addresses:
-        img = fr.load_image_file(os.path.join(wrkng_dir,image[0]))
+        img = fr.load_image_file(path.join(wrkng_dir,image[0]))
         if img:
             face = fr.face_encodings(img)
             if len(face) < 1:
-                ValueError("The image at |{}| did not contain a face".format(os.path.join(wrkng_dir,image)))
+                ValueError("The image at |{}| did not contain a face".format(path.join(wrkng_dir,image)))
             elif len(face) > 1:
-                ValueError("The image at |{}| contained more than one face".format(os.path.join(wrkng_dir,image)))
+                ValueError("The image at |{}| contained more than one face".format(path.join(wrkng_dir,image)))
             allencodings.append(face[0])
         else:
-            ValueError("The image at |{}| was unable to load".format(os.path.join(wrkng_dir,image)))
+            ValueError("The image at |{}| was unable to load".format(path.join(wrkng_dir,image)))
         
     alist = pkl.dumps(allencodings)
     cur.execute("DELETE FROM faces WHERE id = %s",(reg_num,))
